@@ -9,8 +9,54 @@ fn encode_all(buf:&mut Vec<u8>) {
 
  }
 }
-fn encode(buf:&mut Vec<u8>) {
- // 
+//h is coming from previous iteration
+fn encode(mes: [u32;64], H:&mut [u32; 8]) {
+    //Write code to extract mes from message, or just pass it like that.
+    let mut a = H[0];
+    let mut b = H[1];
+    let mut c = H[2];
+    let mut d = H[3];
+    let mut e = H[4];
+    let mut f = H[5];
+    let mut g = H[6];
+    let mut h = H[7];
+    // 
+    //prepare the the message schedule, have no fucking idea how it's working we will figure out later
+    //word shedule is W
+    //mes should be somehow read from message
+    let mut mes: [u32;64] = [0;64];
+    let mut W:[u32;64] = [0;64];
+    for t in 0 ..16 {
+            W[t] =  mes[t];
+    } 
+    for t in 16 ..64 {
+            W[t] =  sigma_1_256(W[t-2]) + W[t-7]  +sigma_0_256(W[t-15]) + W[t-16];
+    } 
+    for t in 0..64 {
+        if t < 16 {
+        } else  {
+
+        }
+        let t1 = h + epsil_1_256(e) + ch(e, f, g) + K[t]  +W[t];
+        let t2 = epsil_0_256(a) + maj(a, b, c);
+        h = g;
+        g= f;
+        f =e;
+        e = d + t1;
+        d =c;
+        c=b;
+        b=a;
+        a = t1 + t2;
+    }
+    H[0] = a +H[0];
+    H[1] = b +H[1];
+    H[2] = c +H[2];
+    H[3] = d +H[3];
+    H[4] = e +H[4];
+    H[5] = f +H[5];   
+    H[6] = g +H[6];   
+    H[7] = h +H[7];   
+
 }
 pub fn pad_message(buf:&mut Vec<u8>) {
     let  original_buf_len_bits = (buf.len() as u64) * 8 ;
