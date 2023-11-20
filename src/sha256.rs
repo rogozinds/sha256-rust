@@ -1,30 +1,35 @@
 use crate::constants::K;
+use crate::constants::H;
 // //w  w-bit word in our case w-32
 
 //this is doing it for the whole file.
 fn encode_all(buf:&mut Vec<u8>) {
  // read a file:
- let N = 10; // this is the n blocks in the file
- for i 1 .. N {
+//  let N = 10; // this is the n blocks in the file
+//  for i 1 .. N {
 
- }
+//  }
+}
+fn encode(mes: [u32;64]) -> [u32; 8]{
+    let mut hash = H.clone();
+    _encode(mes, &mut hash);
+    hash
 }
 //h is coming from previous iteration
-fn encode(mes: [u32;64], H:&mut [u32; 8]) {
+fn _encode(mes: [u32;64], hash: &mut [u32; 8]) {
     //Write code to extract mes from message, or just pass it like that.
-    let mut a = H[0];
-    let mut b = H[1];
-    let mut c = H[2];
-    let mut d = H[3];
-    let mut e = H[4];
-    let mut f = H[5];
-    let mut g = H[6];
-    let mut h = H[7];
+    let mut a = hash[0];
+    let mut b = hash[1];
+    let mut c = hash[2];
+    let mut d = hash[3];
+    let mut e = hash[4];
+    let mut f = hash[5];
+    let mut g = hash[6];
+    let mut h = hash[7];
     // 
     //prepare the the message schedule, have no fucking idea how it's working we will figure out later
     //word shedule is W
     //mes should be somehow read from message
-    let mut mes: [u32;64] = [0;64];
     let mut W:[u32;64] = [0;64];
     for t in 0 ..16 {
             W[t] =  mes[t];
@@ -33,10 +38,6 @@ fn encode(mes: [u32;64], H:&mut [u32; 8]) {
             W[t] =  sigma_1_256(W[t-2]) + W[t-7]  +sigma_0_256(W[t-15]) + W[t-16];
     } 
     for t in 0..64 {
-        if t < 16 {
-        } else  {
-
-        }
         let t1 = h + epsil_1_256(e) + ch(e, f, g) + K[t]  +W[t];
         let t2 = epsil_0_256(a) + maj(a, b, c);
         h = g;
@@ -48,14 +49,14 @@ fn encode(mes: [u32;64], H:&mut [u32; 8]) {
         b=a;
         a = t1 + t2;
     }
-    H[0] = a +H[0];
-    H[1] = b +H[1];
-    H[2] = c +H[2];
-    H[3] = d +H[3];
-    H[4] = e +H[4];
-    H[5] = f +H[5];   
-    H[6] = g +H[6];   
-    H[7] = h +H[7];   
+    hash[0] = a +hash[0];
+    hash[1] = b +hash[1];
+    hash[2] = c +hash[2];
+    hash[3] = d +hash[3];
+    hash[4] = e +hash[4];
+    hash[5] = f +hash[5];   
+    hash[6] = g +hash[6];   
+    hash[7] = h +hash[7];   
 
 }
 pub fn pad_message(buf:&mut Vec<u8>) {
@@ -138,6 +139,26 @@ fn sigma_1_256(x:u32)->u32{
 mod tests {
     use super::*;
 
+//TODO fix tests, the problem is that pad_message has a Vector and encode expects an array.
+#[test]
+fn encode_on_empty_string_test_vector() {
+   let mut val :Vec<u8>= vec![]; 
+   let mut val = val.clone();
+   pad_message(&mut val);
+   let hash = encode(val);
+    let expected = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855;
+    assert_eq!(expected , hash); 
+
+}
+#[test]
+fn encode_on_abc_string_test_vector() {
+   let val= vec![97 as u8, 98 as u8, 99 as u8]; //abc
+   let mut val = val.clone();
+   pad_message(&mut val);
+   let hash= encode(val);
+    let expected = 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad;
+    assert_eq!( , hash); 
+}
 #[test]
 fn check_pad_message_returns_correct_chars() {
     let mut val= vec![97 as u8, 98 as u8, 99 as u8]; //abc
