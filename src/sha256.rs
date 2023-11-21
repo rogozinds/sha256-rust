@@ -104,6 +104,19 @@ pub fn pad_message_buf(buf: &mut [u8], read_size: usize) ->[u32; 16] {
     output
 
 }
+pub fn convert_to_u32_array(buf: &Vec<u8>) -> [u32; 16] {
+    if buf.len() != 64 {
+        panic!("Buffer length must be exactly 64 bytes to convert to [u32; 16]");
+    }
+
+    let mut array = [0u32; 16];
+    for (i, chunk) in buf.chunks(4).enumerate() {
+        let bytes: [u8; 4] = chunk.try_into().expect("Slice with incorrect length");
+        array[i] = u32::from_be_bytes(bytes);
+    }
+
+    array
+}
 fn u64_to_byte_block(value: u64) -> [u8; 8] {
     let mut byte_block = [0u8; 8];
 
@@ -173,15 +186,25 @@ mod tests {
 
 //TODO fix tests, the problem is that pad_message has a Vector and encode expects an array.
 #[test]
-// fn encode_on_empty_string_test_vector() {
-//    let mut val :Vec<u8>= vec![]; 
-//    let mut val = val.clone();
-//    pad_message(&mut val);
-//    let hash = encode(val);
-//     let expected = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855;
-//     assert_eq!(expected , hash); 
+fn encode_on_empty_string_test_vector() {
+   let mut val :Vec<u8>= vec![]; 
+   let mut val = val.clone();
+   pad_message(&mut val);
+   let mes =convert_to_u32_array(&val);
+   let hash = encode(mes);
+    let expected = [
+        0xe3b0c442,
+        0x98fc1c14,
+        0x9afbf4c8,
+        0x996fb924,
+        0x27ae41e4,
+        0x649b934c,
+        0xa495991b,
+        0x7852b855
+    ];
+    assert_eq!(expected , hash); 
 
-// }
+}
 // #[test]
 // fn encode_on_abc_string_test_vector() {
 //    let val= vec![97 as u8, 98 as u8, 99 as u8]; //abc
