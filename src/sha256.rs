@@ -1,8 +1,27 @@
+use std::fs::File;
+use std::io::Read;
+
 use crate::constants::K;
 use crate::constants::H;
 // //w  w-bit word in our case w-32
-
 //this is doing it for the whole file.
+
+pub fn sha256(mut file:File)->[u32;8] {
+    let mut buffer = [0u8; 64]; // 512 bits
+    let mut hash = H.clone(); // Initialize with the starting hash values
+
+    while let Ok(bytes_read) = file.read(&mut buffer) {
+        if bytes_read == 0 {
+            break; // End of file
+        }
+
+
+        let mes = pad_message(&mut buffer, bytes_read);
+        hash = encode(mes, &hash);
+    }
+    hash
+}
+
 fn encode_all(buf:&mut Vec<u8>) {
  // read a file:
 //  let N = 10; // this is the n blocks in the file
@@ -10,8 +29,13 @@ fn encode_all(buf:&mut Vec<u8>) {
 
 //  }
 }
-fn encode(mes: [u32;16]) -> [u32; 8]{
-    let mut hash = H.clone();
+// fn encode(mes: [u32;16], ) -> [u32; 8]{
+//     let mut hash = H.clone();
+//     _encode(mes, &mut hash);
+//     hash
+// }
+fn encode(mes: [u32; 16], previous_hash: &[u32; 8]) -> [u32; 8] {
+    let mut hash = previous_hash.clone();
     _encode(mes, &mut hash);
     hash
 }
@@ -67,7 +91,9 @@ fn _encode(mes: [u32;16], hash: &mut [u32; 8]) {
 
 pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
     assert!(buf.len() == 64 && read_size <= 64, "Buffer length should be 64 bytes");
-
+    if(read_size==64) {
+        return convert_to_u32_array(buf);
+    }
     let original_len_bits = (read_size as u64) * 8;
     let modified_buf_len = (original_len_bits + 1) % 512;
     let n_zeros = 448 - modified_buf_len;
@@ -78,6 +104,10 @@ pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
 
     let l_asbytes = u64_to_byte_block(original_len_bits);
     buf[56..64].copy_from_slice(&l_asbytes);
+    convert_to_u32_array(buf)
+
+}
+fn convert_to_u32_array(buf: &[u8])->[u32; 16]{
 
     let mut output = [0u32; 16];
     for (i, chunk) in buf.chunks_exact(4).enumerate() {
@@ -85,9 +115,7 @@ pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
     }
 
     output
-
 }
-
 fn u64_to_byte_block(value: u64) -> [u8; 8] {
     let mut byte_block = [0u8; 8];
 
@@ -160,7 +188,8 @@ fn encode_on_empty_string_test_vector() {
    let mut val=[0u8;64];
     
    let mes =pad_message(&mut val,0);
-   let hash = encode(mes);
+
+   let hash = encode(mes, &H.clone());
     let expected = [
         0xe3b0c442,
         0x98fc1c14,
@@ -181,7 +210,7 @@ fn encode_on_abc_string_test_vector() {
    val[1] = 98;
    val[2] = 99;
    let mes = pad_message(&mut val, 3);
-   let hash = encode(mes);
+   let hash = encode(mes,&H.clone());
     let expected = [
         0xba7816bf,
         0x8f01cfea,
@@ -206,7 +235,7 @@ fn encode_on_rc4_stream_test_vector() {
         }
    }
    let mes = pad_message(&mut val, 16);
-   let hash = encode(mes);
+   let hash = encode(mes, &H.clone());
     let expected = [
         0x067c5312,
         0x69735ca7,
