@@ -80,12 +80,13 @@ pub fn pad_message(buf:&mut Vec<u8>) {
  }
 
 pub fn pad_message_buf(buf: &mut [u8], read_size: usize) ->[u32; 16] {
-    if buf.len() != 64 {
-        panic!("BUffer length should be 64 bytes");
+    if buf.len() != 64  || read_size>64{
+        panic!("Buffer length should be 64 bytes");
     }
+    let  original_len_bits = (read_size as u64) * 8 ;
     let mut index=read_size; //index is read_size-1, but we add 1 byte, according to alg
-    let  original_buf_len_bits = (read_size as u64) * 8 ;
-    let modified_buf_len = ((read_size+1)  % 512) as u64;
+
+    let modified_buf_len = ((original_len_bits+1)  % 512) as u64;
     //check if it's zero no need to pad.
     let n_zeros = 448 - modified_buf_len;
     let n_zeros_bytes = n_zeros / 8;
@@ -95,7 +96,7 @@ pub fn pad_message_buf(buf: &mut [u8], read_size: usize) ->[u32; 16] {
         buf[i]=0;
     }
     index+=n_zeros_bytes as usize; 
-    let l_asbytes = u64_to_byte_block(read_size as u64);
+    let l_asbytes = u64_to_byte_block(original_len_bits);
     for i in 0..8 {
         buf[index+i]=l_asbytes[i];
     }
@@ -209,6 +210,20 @@ fn encode_on_empty_string_test_vector() {
     ];
     assert_eq!(expected , hash); 
 
+}
+#[test]
+fn pad_vec_and_pad_buf_are_same() {
+
+   let mut val :Vec<u8>= vec![97,98,99]; 
+   pad_message(&mut val);
+   let mes_vec =convert_to_u32_array(&val);
+   let mut buf :[u8;64]= [0;64];
+   buf[0]=97;
+   buf[1]=98;
+   buf[2]=99;
+   let mes_buf = pad_message_buf(&mut buf, 3);
+
+    assert_eq!(mes_vec , mes_buf); 
 }
 #[test]
 fn encode_on_abc_string_test_vector() {
