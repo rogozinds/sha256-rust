@@ -65,64 +65,29 @@ fn _encode(mes: [u32;16], hash: &mut [u32; 8]) {
     hash[7] = hash[7].wrapping_add(h);
 }
 
-pub fn pad_message(buf:&mut Vec<u8>) {
-    let  original_buf_len_bits = (buf.len() as u64) * 8 ;
-    let modified_buf_len = ((original_buf_len_bits+1)  % 512) as u64;
-     //check if it's zero no need to pad.
-     let n_zeros = 448 - modified_buf_len;
-     let n_zeros_bytes = n_zeros / 8;
-     buf.push(0x80);
-     buf.extend(vec![0u8; n_zeros_bytes as usize]);
-    
-     let l_asbytes = u64_to_byte_block(original_buf_len_bits);
-     buf.extend_from_slice(&l_asbytes);
- 
- }
+pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
+    assert!(buf.len() == 64 && read_size <= 64, "Buffer length should be 64 bytes");
 
-pub fn pad_message_buf(buf: &mut [u8], read_size: usize) ->[u32; 16] {
-    if buf.len() != 64  || read_size>64{
-        panic!("Buffer length should be 64 bytes");
-    }
-    let  original_len_bits = (read_size as u64) * 8 ;
-    let mut index=read_size; //index is read_size-1, but we add 1 byte, according to alg
-
-    let modified_buf_len = ((original_len_bits+1)  % 512) as u64;
-    //check if it's zero no need to pad.
+    let original_len_bits = (read_size as u64) * 8;
+    let modified_buf_len = (original_len_bits + 1) % 512;
     let n_zeros = 448 - modified_buf_len;
-    let n_zeros_bytes = n_zeros / 8;
-    buf[index] = 0x80;
-    index+=1;
-    for i in index..index+n_zeros_bytes as usize {
-        buf[i]=0;
-    }
-    index+=n_zeros_bytes as usize; 
+    let n_zeros_bytes = (n_zeros / 8) as usize;
+
+    buf[read_size] = 0x80;
+    buf[read_size + 1..read_size + 1 + n_zeros_bytes].fill(0);
+
     let l_asbytes = u64_to_byte_block(original_len_bits);
-    for i in 0..8 {
-        buf[index+i]=l_asbytes[i];
-    }
-        
-    // Convert the padded buffer to [u32; 16]
+    buf[56..64].copy_from_slice(&l_asbytes);
+
     let mut output = [0u32; 16];
-    for (i, chunk) in buf.chunks(4).enumerate() {
-        output[i] = u32::from_be_bytes(chunk.try_into().unwrap());
+    for (i, chunk) in buf.chunks_exact(4).enumerate() {
+        output[i] = u32::from_be_bytes(chunk.try_into().expect("Invalid chunk size"));
     }
 
     output
 
 }
-pub fn convert_to_u32_array(buf: &Vec<u8>) -> [u32; 16] {
-    if buf.len() != 64 {
-        panic!("Buffer length must be exactly 64 bytes to convert to [u32; 16]");
-    }
 
-    let mut array = [0u32; 16];
-    for (i, chunk) in buf.chunks(4).enumerate() {
-        let bytes: [u8; 4] = chunk.try_into().expect("Slice with incorrect length");
-        array[i] = u32::from_be_bytes(bytes);
-    }
-
-    array
-}
 fn u64_to_byte_block(value: u64) -> [u8; 8] {
     let mut byte_block = [0u8; 8];
 
@@ -190,13 +155,11 @@ fn sigma_1_256(x:u32)->u32{
 mod tests {
     use super::*;
 
-//TODO fix tests, the problem is that pad_message has a Vector and encode expects an array.
 #[test]
 fn encode_on_empty_string_test_vector() {
-   let mut val :Vec<u8>= vec![]; 
-   let mut val = val.clone();
-   pad_message(&mut val);
-   let mes =convert_to_u32_array(&val);
+   let mut val=[0u8;64];
+    
+   let mes =pad_message(&mut val,0);
    let hash = encode(mes);
     let expected = [
         0xe3b0c442,
@@ -212,25 +175,12 @@ fn encode_on_empty_string_test_vector() {
 
 }
 #[test]
-fn pad_vec_and_pad_buf_are_same() {
-
-   let mut val :Vec<u8>= vec![97,98,99]; 
-   pad_message(&mut val);
-   let mes_vec =convert_to_u32_array(&val);
-   let mut buf :[u8;64]= [0;64];
-   buf[0]=97;
-   buf[1]=98;
-   buf[2]=99;
-   let mes_buf = pad_message_buf(&mut buf, 3);
-
-    assert_eq!(mes_vec , mes_buf); 
-}
-#[test]
 fn encode_on_abc_string_test_vector() {
-   let mut val :Vec<u8>= vec![97,98,99]; 
-   let mut val = val.clone();
-   pad_message(&mut val);
-   let mes =convert_to_u32_array(&val);
+   let mut val=[0u8;64];
+   val[0] = 97;
+   val[1] = 98;
+   val[2] = 99;
+   let mes = pad_message(&mut val, 3);
    let hash = encode(mes);
     let expected = [
         0xba7816bf,
@@ -244,21 +194,18 @@ fn encode_on_abc_string_test_vector() {
 
     ];
     assert_eq!(expected , hash); 
-
 }
 #[test]
 fn encode_on_rc4_stream_test_vector() {
-   let mut val :Vec<u8>= vec![
-    ]; 
+   let mut val =[0u8;64]; 
 
    let str= "de188941a3375d3a8a061e67576e926d";
    for i in 0..16 {
         if let parsed = u8::from_str_radix(&str[i*2..i*2+2],16) {
-            val.push(parsed.unwrap());
+            val[i] =parsed.unwrap();
         }
    }
-   pad_message(&mut val);
-   let mes =convert_to_u32_array(&val);
+   let mes = pad_message(&mut val, 16);
    let hash = encode(mes);
     let expected = [
         0x067c5312,
@@ -271,12 +218,15 @@ fn encode_on_rc4_stream_test_vector() {
         0x5eff6e4d
     ];
     assert_eq!(expected , hash); 
-
 }
+
 #[test]
 fn check_pad_message_returns_correct_chars() {
-    let mut val= vec![97 as u8, 98 as u8, 99 as u8]; //abc
-    pad_message(&mut val);
+    let mut val:[u8;64]=[0;64];
+    val[0] = 97;
+    val[1] = 98;
+    val[2] = 99;
+    pad_message(&mut val, 3);
     assert_eq!( 64, val.len()); 
 
     assert_eq!( 97, val[0]);  //  a b0110_0001
@@ -287,8 +237,8 @@ fn check_pad_message_returns_correct_chars() {
 }
 #[test]
 fn check_pad_message_returns_block_len512() {
-    let mut val= vec![3 as u8];
-    pad_message(&mut val);
+    let mut val:[u8;64]=[0;64];
+    pad_message(&mut val,0);
     assert_eq!( 64, val.len()); 
 }
 #[test]
