@@ -35,29 +35,34 @@ fn _encode(mes: [u32;16], hash: &mut [u32; 8]) {
             W[t] =  mes[t];
     } 
     for t in 16 ..64 {
-            W[t] =  sigma_1_256(W[t-2]) + W[t-7]  +sigma_0_256(W[t-15]) + W[t-16];
+            let a = sigma_1_256(W[t-2]);
+            let b = sigma_0_256(W[t-15]);
+            W[t] =  a.wrapping_add( W[t-7]).wrapping_add(b).wrapping_add(W[t-16]);
     } 
     for t in 0..64 {
-        let t1 = h + epsil_1_256(e) + ch(e, f, g) + K[t]  +W[t];
-        let t2 = epsil_0_256(a) + maj(a, b, c);
+        let t1 = h.wrapping_add(epsil_1_256(e))
+                .wrapping_add(ch(e, f, g))
+                .wrapping_add(K[t])
+                .wrapping_add(W[t]);
+
+        let t2 = epsil_0_256(a).wrapping_add(maj(a, b, c));
         h = g;
         g= f;
         f =e;
-        e = d + t1;
+        e = d.wrapping_add(t1);
         d =c;
         c=b;
         b=a;
-        a = t1 + t2;
+        a = t1.wrapping_add(t2);
     }
-    hash[0] = a +hash[0];
-    hash[1] = b +hash[1];
-    hash[2] = c +hash[2];
-    hash[3] = d +hash[3];
-    hash[4] = e +hash[4];
-    hash[5] = f +hash[5];   
-    hash[6] = g +hash[6];   
-    hash[7] = h +hash[7];   
-
+    hash[0] = hash[0].wrapping_add(a);
+    hash[1] = hash[1].wrapping_add(b);
+    hash[2] = hash[2].wrapping_add(c);
+    hash[3] = hash[3].wrapping_add(d);
+    hash[4] = hash[4].wrapping_add(e);
+    hash[5] = hash[5].wrapping_add(f);
+    hash[6] = hash[6].wrapping_add(g);
+    hash[7] = hash[7].wrapping_add(h);
 }
 
 pub fn pad_message(buf:&mut Vec<u8>) {
@@ -205,15 +210,54 @@ fn encode_on_empty_string_test_vector() {
     assert_eq!(expected , hash); 
 
 }
-// #[test]
-// fn encode_on_abc_string_test_vector() {
-//    let val= vec![97 as u8, 98 as u8, 99 as u8]; //abc
-//    let mut val = val.clone();
-//    pad_message(&mut val);
-//    let hash= encode(val);
-//     let expected = 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad;
-//     assert_eq!( , hash); 
-// }
+#[test]
+fn encode_on_abc_string_test_vector() {
+   let mut val :Vec<u8>= vec![97,98,99]; 
+   let mut val = val.clone();
+   pad_message(&mut val);
+   let mes =convert_to_u32_array(&val);
+   let hash = encode(mes);
+    let expected = [
+        0xba7816bf,
+        0x8f01cfea,
+        0x414140de,
+        0x5dae2223,
+        0xb00361a3,
+        0x96177a9c,
+        0xb410ff61,
+        0xf20015ad
+
+    ];
+    assert_eq!(expected , hash); 
+
+}
+#[test]
+fn encode_on_rc4_stream_test_vector() {
+   let mut val :Vec<u8>= vec![
+    ]; 
+
+   let str= "de188941a3375d3a8a061e67576e926d";
+   for i in 0..16 {
+        if let parsed = u8::from_str_radix(&str[i*2..i*2+2],16) {
+            val.push(parsed.unwrap());
+        }
+   }
+   pad_message(&mut val);
+   let mes =convert_to_u32_array(&val);
+   let hash = encode(mes);
+    let expected = [
+        0x067c5312,
+        0x69735ca7,
+        0xf541fdac,
+        0xa8f0dc76,
+        0x305d3cad,
+        0xa140f893,
+        0x72a410fe,
+        0x5eff6e4d
+    ];
+    assert_eq!(expected , hash); 
+
+}
 #[test]
 fn check_pad_message_returns_correct_chars() {
     let mut val= vec![97 as u8, 98 as u8, 99 as u8]; //abc
