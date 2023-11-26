@@ -5,7 +5,8 @@ use crate::sha256::sha256 as my_sha256;
 mod constants;
 mod sha256;
 fn main() {
-    let f = File::open("/home/dmitrii/tmp/small.txt").unwrap();
+    let f = File::open("/home/dmitrii/tmp/random_file.bin").unwrap();
+    // let f = File::open("/home/dmitrii/tmp/abc_64.txt").unwrap();
     let hash = my_sha256(f);
 
     println!("{:?}", u32_array_to_hex_string(hash));

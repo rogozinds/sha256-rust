@@ -7,18 +7,18 @@ use crate::constants::H;
 //this is doing it for the whole file.
 
 pub fn sha256(mut file:File)->[u32;8] {
-    let mut buffer = [1u8; 64]; // 512 bits
+    let mut buffer = [0u8; 64]; // 512 bits
+    let mut last_buffer = [0u8;64];
     let mut hash = H.clone(); // Initialize with the starting hash values
     let mut total_bytes_read=0usize;
     let mut last_bytes_read:usize=0usize;
     while let Ok(bytes_read) = file.read(&mut buffer) {
-
         if bytes_read == 0 {
             break; // End of file
         }
         total_bytes_read+=bytes_read;
         last_bytes_read=bytes_read;
-
+        last_buffer = buffer.clone();
         if(bytes_read==64){
             let mes = convert_to_u32_array(&buffer);
             hash = encode(mes, &hash);
@@ -29,12 +29,15 @@ pub fn sha256(mut file:File)->[u32;8] {
     }
     //padding the message
         if last_bytes_read<56 {
-            let mes = pad_message(&mut buffer, last_bytes_read, total_bytes_read);
+            let mes = pad_message(&mut last_buffer, last_bytes_read, total_bytes_read);
             hash = encode(mes, &hash);
 
-        } else {
-            let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
+        } else if last_bytes_read != 64{
+            let (mes1, mes2) = pad_message_long(&mut last_buffer, last_bytes_read, total_bytes_read);
             hash = encode(mes1, &hash);
+            hash = encode(mes2, &hash);
+        } else {
+            let (mes1, mes2) = pad_message_long(&mut last_buffer, last_bytes_read, total_bytes_read);
             hash = encode(mes2, &hash);
         }
 
@@ -139,6 +142,7 @@ pub fn pad_message_long(buf: &mut [u8], read_size: usize, mes_length:usize) ->([
         buf[56..64].copy_from_slice(&l_asbytes);
         let second_block = convert_to_u32_array(buf);
         return (first_block, second_block);
+
     } else {
 
         buf[read_size] = 0x80;
