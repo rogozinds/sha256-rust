@@ -15,14 +15,20 @@ pub fn sha256(mut file:File)->[u32;8] {
             break; // End of file
         }
 
+        if bytes_read==64 || bytes_read<56 {
+            let mes = pad_message(&mut buffer, bytes_read);
+            hash = encode(mes, &hash);
 
-        let mes = pad_message(&mut buffer, bytes_read);
-        hash = encode(mes, &hash);
+        } else {
+            let (mes1, mes2) = pad_message_long(&mut buffer, bytes_read);
+            hash = encode(mes1, &hash);
+            hash = encode(mes2, &hash);
+        }
     }
     hash
 }
 
-fn encode_all(buf:&mut Vec<u8>) {
+fn encode_all(_buf:&mut Vec<u8>) {
  // read a file:
 //  let N = 10; // this is the n blocks in the file
 //  for i 1 .. N {
@@ -34,13 +40,13 @@ fn encode_all(buf:&mut Vec<u8>) {
 //     _encode(mes, &mut hash);
 //     hash
 // }
-fn encode(mes: [u32; 16], previous_hash: &[u32; 8]) -> [u32; 8] {
-    let mut hash = previous_hash.clone();
-    _encode(mes, &mut hash);
-    hash
-}
+// fn encode(mes: [u32; 16], previous_hash: &[u32; 8]) -> [u32; 8] {
+//     let mut hash = previous_hash.clone();
+//     _encode(mes, &mut hash);
+//     hash
+// }
 //h is coming from previous iteration
-fn _encode(mes: [u32;16], hash: &mut [u32; 8]) {
+fn encode(mes: [u32; 16], hash: &[u32; 8]) -> [u32; 8] {
     //Write code to extract mes from message, or just pass it like that.
     let mut a = hash[0];
     let mut b = hash[1];
@@ -79,19 +85,21 @@ fn _encode(mes: [u32;16], hash: &mut [u32; 8]) {
         b=a;
         a = t1.wrapping_add(t2);
     }
-    hash[0] = hash[0].wrapping_add(a);
-    hash[1] = hash[1].wrapping_add(b);
-    hash[2] = hash[2].wrapping_add(c);
-    hash[3] = hash[3].wrapping_add(d);
-    hash[4] = hash[4].wrapping_add(e);
-    hash[5] = hash[5].wrapping_add(f);
-    hash[6] = hash[6].wrapping_add(g);
-    hash[7] = hash[7].wrapping_add(h);
+    let mut new_hash = hash.clone();
+    new_hash[0] = hash[0].wrapping_add(a);
+    new_hash[1] = hash[1].wrapping_add(b);
+    new_hash[2] = hash[2].wrapping_add(c);
+    new_hash[3] = hash[3].wrapping_add(d);
+    new_hash[4] = hash[4].wrapping_add(e);
+    new_hash[5] = hash[5].wrapping_add(f);
+    new_hash[6] = hash[6].wrapping_add(g);
+    new_hash[7] = hash[7].wrapping_add(h);
+    new_hash
 }
 
 pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
     assert!(buf.len() == 64 && read_size <= 64, "Buffer length should be 64 bytes");
-    if(read_size==64) {
+    if read_size==64 {
         return convert_to_u32_array(buf);
     }
     let original_len_bits = (read_size as u64) * 8;
@@ -105,6 +113,20 @@ pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
     let l_asbytes = u64_to_byte_block(original_len_bits);
     buf[56..64].copy_from_slice(&l_asbytes);
     convert_to_u32_array(buf)
+
+}
+pub fn pad_message_long(buf: &mut [u8], read_size: usize) ->([u32; 16], [u32;16]) {
+    assert!(buf.len() == 64 && read_size < 64, "Buffer length should be 64 bytes, and read is less than 64");
+    buf[read_size] = 0x80;
+    buf[read_size + 1 .. ].fill(0);
+    let first_block = convert_to_u32_array(buf);
+    //Start second block.
+    let original_len_bits = (read_size as u64) * 8;
+    buf.fill(0); // Reset buffer
+    let l_asbytes = u64_to_byte_block(original_len_bits);
+    buf[56..64].copy_from_slice(&l_asbytes);
+    let second_block = convert_to_u32_array(buf);
+    return (first_block, second_block);
 
 }
 fn convert_to_u32_array(buf: &[u8])->[u32; 16]{
@@ -249,6 +271,22 @@ fn encode_on_rc4_stream_test_vector() {
     assert_eq!(expected , hash); 
 }
 
+// #[test]
+// fn check_pad_message_for_item_nearly_64() {
+//     let mut val:[u8;64]=[0;64];
+//     val[0] = 97;
+//     val[1] = 98;
+//     val[2] = 99;
+//     val[61] = 100;
+//     pad_message(&mut val, 100);
+//     assert_eq!( 64, val.len()); 
+
+//     assert_eq!( 97, val[0]);  //  a b0110_0001
+//     assert_eq!( 98, val[1]); // b b0110_0010
+//     assert_eq!( 99, val[2]); //c
+//     assert_eq!(0x80, val[3] ); //divide bit b1000_0000
+//     assert_eq!( 24, val[63]);  //len as big Endian
+// }
 #[test]
 fn check_pad_message_returns_correct_chars() {
     let mut val:[u8;64]=[0;64];
