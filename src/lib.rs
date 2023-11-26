@@ -22,7 +22,7 @@ pub fn sha256(mut file:File)->[u32;8] {
         last_buffer = buffer.clone();
         if(bytes_read==64){
             let mes = convert_to_u32_array(&buffer);
-            hash = encode(mes, &hash);
+            encode(mes, &mut hash);
             buffer = [0u8; 64]; // 512 bits
         } else {
 
@@ -31,15 +31,15 @@ pub fn sha256(mut file:File)->[u32;8] {
     //padding the message
         if last_bytes_read<56 {
             let mes = pad_message(&mut last_buffer, last_bytes_read, total_bytes_read);
-            hash = encode(mes, &hash);
+            encode(mes,&mut  hash);
 
         } else if last_bytes_read != 64{
             let (mes1, mes2) = pad_message_long(&mut last_buffer, last_bytes_read, total_bytes_read);
-            hash = encode(mes1, &hash);
-            hash = encode(mes2, &hash);
+            encode(mes1, &mut hash);
+            encode(mes2,&mut hash);
         } else {
             let (mes1, mes2) = pad_message_long(&mut last_buffer, last_bytes_read, total_bytes_read);
-            hash = encode(mes2, &hash);
+            encode(mes2,&mut hash);
         }
 
     hash
@@ -68,7 +68,7 @@ fn encode_all(_buf:&mut Vec<u8>) {
 //     hash
 // }
 //h is coming from previous iteration
-fn encode(mes: [u32; 16], hash: &[u32; 8]) -> [u32; 8] {
+fn encode(mes: [u32; 16], hash: &mut [u32; 8]) -> &[u32; 8] {
     //Write code to extract mes from message, or just pass it like that.
     let mut a = hash[0];
     let mut b = hash[1];
@@ -107,16 +107,15 @@ fn encode(mes: [u32; 16], hash: &[u32; 8]) -> [u32; 8] {
         b=a;
         a = t1.wrapping_add(t2);
     }
-    let mut new_hash = hash.clone();
-    new_hash[0] = hash[0].wrapping_add(a);
-    new_hash[1] = hash[1].wrapping_add(b);
-    new_hash[2] = hash[2].wrapping_add(c);
-    new_hash[3] = hash[3].wrapping_add(d);
-    new_hash[4] = hash[4].wrapping_add(e);
-    new_hash[5] = hash[5].wrapping_add(f);
-    new_hash[6] = hash[6].wrapping_add(g);
-    new_hash[7] = hash[7].wrapping_add(h);
-    new_hash
+    hash[0] = hash[0].wrapping_add(a);
+    hash[1] = hash[1].wrapping_add(b);
+    hash[2] = hash[2].wrapping_add(c);
+    hash[3] = hash[3].wrapping_add(d);
+    hash[4] = hash[4].wrapping_add(e);
+    hash[5] = hash[5].wrapping_add(f);
+    hash[6] = hash[6].wrapping_add(g);
+    hash[7] = hash[7].wrapping_add(h);
+    hash
 }
 
 pub fn pad_message(buf: &mut [u8], read_size: usize, mes_length:usize) ->[u32; 16] {
@@ -245,7 +244,8 @@ fn encode_on_empty_string_test_vector() {
     
    let mes =pad_message(&mut val,0,0);
 
-   let hash = encode(mes, &H.clone());
+   let mut hash = H.clone();
+   encode(mes, &mut hash);
     let expected = [
         0xe3b0c442,
         0x98fc1c14,
@@ -266,7 +266,8 @@ fn encode_on_abc_string_test_vector() {
    val[1] = 98;
    val[2] = 99;
    let mes = pad_message(&mut val, 3, 3);
-   let hash = encode(mes,&H.clone());
+   let mut hash = H.clone();
+   encode(mes, &mut hash);
     let expected = [
         0xba7816bf,
         0x8f01cfea,
@@ -291,7 +292,8 @@ fn encode_on_rc4_stream_test_vector() {
         }
    }
    let mes = pad_message(&mut val, 16, 16);
-   let hash = encode(mes, &H.clone());
+   let mut hash = H.clone();
+   encode(mes, &mut hash);
     let expected = [
         0x067c5312,
         0x69735ca7,
