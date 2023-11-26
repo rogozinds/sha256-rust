@@ -9,7 +9,6 @@ use crate::constants::H;
 
 pub fn sha256(mut file:File)->[u32;8] {
     let mut buffer = [0u8; 64]; // 512 bits
-    let mut last_buffer = [0u8;64];
     let mut hash = H.clone(); // Initialize with the starting hash values
     let mut total_bytes_read=0usize;
     let mut last_bytes_read:usize=0usize;
@@ -19,26 +18,22 @@ pub fn sha256(mut file:File)->[u32;8] {
         }
         total_bytes_read+=bytes_read;
         last_bytes_read=bytes_read;
-        last_buffer = buffer.clone();
-        if(bytes_read==64){
+        if bytes_read==64 {
             let mes = convert_to_u32_array(&buffer);
             encode(mes, &mut hash);
-            buffer = [0u8; 64]; // 512 bits
-        } else {
-
         }
     }
     //padding the message
         if last_bytes_read<56 {
-            let mes = pad_message(&mut last_buffer, last_bytes_read, total_bytes_read);
+            let mes = pad_message(&mut buffer, last_bytes_read, total_bytes_read);
             encode(mes,&mut  hash);
 
         } else if last_bytes_read != 64{
-            let (mes1, mes2) = pad_message_long(&mut last_buffer, last_bytes_read, total_bytes_read);
+            let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
             encode(mes1, &mut hash);
             encode(mes2,&mut hash);
         } else {
-            let (mes1, mes2) = pad_message_long(&mut last_buffer, last_bytes_read, total_bytes_read);
+            let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
             encode(mes2,&mut hash);
         }
 
@@ -50,24 +45,6 @@ pub fn u32_array_to_hex_string(arr: [u32; 8]) -> String {
        .fold(String::new(), |acc, &num| acc + &format!("{:08x}", num))
 }
 
-fn encode_all(_buf:&mut Vec<u8>) {
- // read a file:
-//  let N = 10; // this is the n blocks in the file
-//  for i 1 .. N {
-
-//  }
-}
-// fn encode(mes: [u32;16], ) -> [u32; 8]{
-//     let mut hash = H.clone();
-//     _encode(mes, &mut hash);
-//     hash
-// }
-// fn encode(mes: [u32; 16], previous_hash: &[u32; 8]) -> [u32; 8] {
-//     let mut hash = previous_hash.clone();
-//     _encode(mes, &mut hash);
-//     hash
-// }
-//h is coming from previous iteration
 fn encode(mes: [u32; 16], hash: &mut [u32; 8]) -> &[u32; 8] {
     //Write code to extract mes from message, or just pass it like that.
     let mut a = hash[0];
@@ -213,7 +190,7 @@ fn _rotl(x:u32, n:u32, num_bits:u32)->u32{
     (x<<n) | (x >> num_bits-n)
 }
 fn shr(x:u32,n:u32)->u32 {
-    if n<0 || n> 32 {
+    if n> 32 {
         panic!("Error in SHR, n is in wrong range. n={}",n);
     }
     x >> n
