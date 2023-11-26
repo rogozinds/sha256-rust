@@ -7,26 +7,40 @@ use crate::constants::H;
 //this is doing it for the whole file.
 
 pub fn sha256(mut file:File)->[u32;8] {
-    let mut buffer = [0u8; 64]; // 512 bits
+    let mut buffer = [1u8; 64]; // 512 bits
     let mut hash = H.clone(); // Initialize with the starting hash values
-
+    let mut total_bytes_read=0usize;
+    let mut last_bytes_read:usize=0usize;
     while let Ok(bytes_read) = file.read(&mut buffer) {
+
         if bytes_read == 0 {
             break; // End of file
         }
+        total_bytes_read+=bytes_read;
+        last_bytes_read=bytes_read;
 
-        if bytes_read==64 || bytes_read<56 {
-            let mes = pad_message(&mut buffer, bytes_read);
+        if(bytes_read==64){
+            let mes = convert_to_u32_array(&buffer);
+            hash = encode(mes, &hash);
+            buffer = [0u8; 64]; // 512 bits
+        } else {
+
+        }
+    }
+    //padding the message
+        if last_bytes_read<56 {
+            let mes = pad_message(&mut buffer, last_bytes_read, total_bytes_read);
             hash = encode(mes, &hash);
 
         } else {
-            let (mes1, mes2) = pad_message_long(&mut buffer, bytes_read);
+            let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
             hash = encode(mes1, &hash);
             hash = encode(mes2, &hash);
         }
-    }
+
     hash
 }
+
 
 fn encode_all(_buf:&mut Vec<u8>) {
  // read a file:
@@ -97,12 +111,9 @@ fn encode(mes: [u32; 16], hash: &[u32; 8]) -> [u32; 8] {
     new_hash
 }
 
-pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
-    assert!(buf.len() == 64 && read_size <= 64, "Buffer length should be 64 bytes");
-    if read_size==64 {
-        return convert_to_u32_array(buf);
-    }
-    let original_len_bits = (read_size as u64) * 8;
+pub fn pad_message(buf: &mut [u8], read_size: usize, mes_length:usize) ->[u32; 16] {
+    assert!(buf.len() == 64 && read_size < 56, "Buffer length should be 64 bytes");
+    let original_len_bits = (mes_length as u64) * 8;
     let modified_buf_len = (original_len_bits + 1) % 512;
     let n_zeros = 448 - modified_buf_len;
     let n_zeros_bytes = (n_zeros / 8) as usize;
@@ -115,18 +126,32 @@ pub fn pad_message(buf: &mut [u8], read_size: usize) ->[u32; 16] {
     convert_to_u32_array(buf)
 
 }
-pub fn pad_message_long(buf: &mut [u8], read_size: usize) ->([u32; 16], [u32;16]) {
-    assert!(buf.len() == 64 && read_size < 64, "Buffer length should be 64 bytes, and read is less than 64");
-    buf[read_size] = 0x80;
-    buf[read_size + 1 .. ].fill(0);
-    let first_block = convert_to_u32_array(buf);
-    //Start second block.
-    let original_len_bits = (read_size as u64) * 8;
-    buf.fill(0); // Reset buffer
-    let l_asbytes = u64_to_byte_block(original_len_bits);
-    buf[56..64].copy_from_slice(&l_asbytes);
-    let second_block = convert_to_u32_array(buf);
-    return (first_block, second_block);
+pub fn pad_message_long(buf: &mut [u8], read_size: usize, mes_length:usize) ->([u32; 16], [u32;16]) {
+    assert!(buf.len() == 64 && read_size <= 64, "Buffer length should be 64 bytes, and read is less than 64");
+    if read_size == 64 {
+        let first_block = convert_to_u32_array(buf);
+
+        //Start second block.
+        buf.fill(0); // Reset buffer
+        buf[0] = 0x80;
+        let original_len_bits = (mes_length as u64) * 8;
+        let l_asbytes = u64_to_byte_block(original_len_bits);
+        buf[56..64].copy_from_slice(&l_asbytes);
+        let second_block = convert_to_u32_array(buf);
+        return (first_block, second_block);
+    } else {
+
+        buf[read_size] = 0x80;
+        buf[read_size + 1 .. ].fill(0);
+        let first_block = convert_to_u32_array(buf);
+        //Start second block.
+        let original_len_bits = (mes_length as u64) * 8;
+        buf.fill(0); // Reset buffer
+        let l_asbytes = u64_to_byte_block(original_len_bits);
+        buf[56..64].copy_from_slice(&l_asbytes);
+        let second_block = convert_to_u32_array(buf);
+        return (first_block, second_block);
+    }
 
 }
 fn convert_to_u32_array(buf: &[u8])->[u32; 16]{
@@ -209,7 +234,7 @@ mod tests {
 fn encode_on_empty_string_test_vector() {
    let mut val=[0u8;64];
     
-   let mes =pad_message(&mut val,0);
+   let mes =pad_message(&mut val,0,0);
 
    let hash = encode(mes, &H.clone());
     let expected = [
@@ -231,7 +256,7 @@ fn encode_on_abc_string_test_vector() {
    val[0] = 97;
    val[1] = 98;
    val[2] = 99;
-   let mes = pad_message(&mut val, 3);
+   let mes = pad_message(&mut val, 3, 3);
    let hash = encode(mes,&H.clone());
     let expected = [
         0xba7816bf,
@@ -256,7 +281,7 @@ fn encode_on_rc4_stream_test_vector() {
             val[i] =parsed.unwrap();
         }
    }
-   let mes = pad_message(&mut val, 16);
+   let mes = pad_message(&mut val, 16, 16);
    let hash = encode(mes, &H.clone());
     let expected = [
         0x067c5312,
@@ -293,7 +318,7 @@ fn check_pad_message_returns_correct_chars() {
     val[0] = 97;
     val[1] = 98;
     val[2] = 99;
-    pad_message(&mut val, 3);
+    pad_message(&mut val, 3, 3);
     assert_eq!( 64, val.len()); 
 
     assert_eq!( 97, val[0]);  //  a b0110_0001
@@ -305,7 +330,7 @@ fn check_pad_message_returns_correct_chars() {
 #[test]
 fn check_pad_message_returns_block_len512() {
     let mut val:[u8;64]=[0;64];
-    pad_message(&mut val,0);
+    pad_message(&mut val,0, 0);
     assert_eq!( 64, val.len()); 
 }
 #[test]
