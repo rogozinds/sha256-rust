@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
+mod constants;
 use crate::constants::K;
 use crate::constants::H;
 // //w  w-bit word in our case w-32
@@ -44,6 +45,10 @@ pub fn sha256(mut file:File)->[u32;8] {
     hash
 }
 
+pub fn u32_array_to_hex_string(arr: [u32; 8]) -> String {
+    arr.iter()
+       .fold(String::new(), |acc, &num| acc + &format!("{:08x}", num))
+}
 
 fn encode_all(_buf:&mut Vec<u8>) {
  // read a file:
@@ -391,4 +396,3 @@ fn maj_on_u32_returns_correct() {
     assert_eq!(expected, res); 
 }
 }
-
