@@ -7,39 +7,88 @@ use crate::constants::H;
 // //w  w-bit word in our case w-32
 //this is doing it for the whole file.
 
-pub fn sha256(mut file:File)->[u32;8] {
+
+pub fn sha256(mut file: File) -> [u32; 8] {
+    let mut large_buffer = [0u8; 50 * 1024];
     let mut buffer = [0u8; 64]; // 512 bits
     let mut hash = H.clone(); // Initialize with the starting hash values
-    let mut total_bytes_read=0usize;
-    let mut last_bytes_read:usize=0usize;
-    while let Ok(bytes_read) = file.read(&mut buffer) {
+    let mut total_bytes_read = 0usize;
+
+    while let Ok(bytes_read) = file.read(&mut large_buffer) {
         if bytes_read == 0 {
             break; // End of file
         }
-        total_bytes_read+=bytes_read;
-        last_bytes_read=bytes_read;
-        if bytes_read==64 {
-            let mes = convert_to_u32_array(&buffer);
-            encode(mes, &mut hash);
+
+        for chunk in large_buffer[..bytes_read].chunks(64) {
+            let chunk_len = chunk.len();
+            buffer[..chunk_len].copy_from_slice(chunk);
+
+            if chunk_len == 64 {
+                let mes = convert_to_u32_array(&buffer);
+                encode(mes, &mut hash);
+            }
+            total_bytes_read += chunk_len;
         }
     }
-    //padding the message
-        if last_bytes_read<56 {
-            let mes = pad_message(&mut buffer, last_bytes_read, total_bytes_read);
-            encode(mes,&mut  hash);
 
-        } else if last_bytes_read != 64{
-            let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
+    // Padding the message
+    if total_bytes_read % 64 < 56 {
+        let mes = pad_message(&mut buffer, total_bytes_read % 64, total_bytes_read);
+        encode(mes, &mut hash);
+    } else {
+        let (mes1, mes2) = pad_message_long(&mut buffer, total_bytes_read % 64, total_bytes_read);
+        if total_bytes_read % 64 != 0 {
             encode(mes1, &mut hash);
-            encode(mes2,&mut hash);
-        } else {
-            let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
-            encode(mes2,&mut hash);
         }
+        encode(mes2, &mut hash);
+    }
 
     hash
 }
+//Old version, need to verify it's same as a new one refactored.
+// pub fn sha256_old(mut file:File)->[u32;8] {
+//     let mut large_buffer = [0u8; 50 * 1024];
+//     let mut buffer = [0u8; 64]; // 512 bits
+//     let mut hash = H.clone(); // Initialize with the starting hash values
+//     let mut total_bytes_read=0usize;
+//     let mut last_bytes_read:usize=0usize;
+//     while let Ok(bytes_read) = file.read(&mut large_buffer) {
 
+//         if bytes_read == 0 {
+//             break; // End of file
+//         }
+//         let mut inner_total_bytes_read =0;
+//         while inner_total_bytes_read < bytes_read {
+//             let bytes_left = bytes_read - inner_total_bytes_read;
+//             let inner_bytes_read = min(bytes_left, 64);
+//             buffer[..inner_bytes_read].copy_from_slice(&large_buffer[inner_total_bytes_read..inner_total_bytes_read + inner_bytes_read]);
+
+//             //check that bytes left that is === bytes_read - inner_total_bytes_read is bigger than 64 then 
+//             if inner_bytes_read == 64 {
+//                 let mes = convert_to_u32_array(&buffer);
+//                 encode(mes, &mut hash);
+//             }
+//             inner_total_bytes_read+=inner_bytes_read;
+//             last_bytes_read=inner_bytes_read;
+//         }
+//         total_bytes_read+=inner_total_bytes_read;
+//     }
+//     //padding the message
+//         if last_bytes_read<56 {
+//             let mes = pad_message(&mut buffer, last_bytes_read, total_bytes_read);
+//             encode(mes,&mut  hash);
+
+//         } else if last_bytes_read != 64{
+//             let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
+//             encode(mes1, &mut hash);
+//             encode(mes2,&mut hash);
+//         } else {
+//             let (mes1, mes2) = pad_message_long(&mut buffer, last_bytes_read, total_bytes_read);
+//             encode(mes2,&mut hash);
+//         }
+
+//     hash
+// }
 pub fn u32_array_to_hex_string(arr: [u32; 8]) -> String {
     arr.iter()
        .fold(String::new(), |acc, &num| acc + &format!("{:08x}", num))
